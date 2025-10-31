@@ -7,7 +7,7 @@ import { v4 as uuid } from "uuid";
 import { v2 as cloudinary } from "cloudinary";
 
 // Import Firebase admin and db from features
-import { db, admin } from "./utils/features.js";
+import { db, admin, sendPushNotification } from "./utils/features.js"; // *** IMPORT sendPushNotification ***
 import { errorMiddleware } from "./middlewares/error.js";
 import {
   CHAT_JOINED,
@@ -78,6 +78,7 @@ io.on("connection", (socket) => {
   const user = socket.user; // This user object comes from socketAuthenticator
   userSocketIDs.set(user._id.toString(), socket.id);
 
+  // *** MODIFIED FUNCTION ***
   socket.on(NEW_MESSAGE, async ({ chatId, members, message }) => {
     const messageForRealTime = {
       content: message,
@@ -111,6 +112,35 @@ io.on("connection", (socket) => {
     try {
       // Save message to Firestore
       await db.collection("messages").add(messageForDB);
+
+      // *** NEW PUSH NOTIFICATION LOGIC ***
+      // Send push notification to offline members
+      const senderName = user.name;
+      const recipients = members.filter(
+        (memberId) => memberId.toString() !== user._id.toString()
+      );
+
+      for (const memberId of recipients) {
+        // Check if user is NOT online (no active socket)
+        if (!userSocketIDs.has(memberId.toString())) {
+          try {
+            const userDoc = await db.collection("users").doc(memberId).get();
+            if (userDoc.exists) {
+              const fcmToken = userDoc.data().fcmToken;
+              if (fcmToken) {
+                await sendPushNotification(
+                  fcmToken,
+                  `New Message from ${senderName}`,
+                  message // The message content
+                );
+              }
+            }
+          } catch (error) {
+            console.log("Error fetching user for push notification", error);
+          }
+        }
+      }
+      // *** END NEW LOGIC ***
     } catch (error) {
       console.log("Error saving message to Firestore:", error);
     }

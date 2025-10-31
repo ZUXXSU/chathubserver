@@ -1,6 +1,6 @@
 import { ErrorHandler } from "../utils/utility.js";
 import { TryCatch } from "./error.js";
-import { admin, db } from "../utils/features.js";
+import { admin, db, sendPushNotification } from "../utils/features.js"; // *** IMPORT sendPushNotification ***
 
 // Middleware to verify Firebase ID Token for standard HTTP requests
 const isAuthenticated = TryCatch(async (req, res, next) => {
@@ -60,6 +60,7 @@ const checkAuth = TryCatch(async (req, res, next) => {
 });
 
 // Authenticator for Socket.io connections
+// *** MODIFIED FUNCTION ***
 const socketAuthenticator = async (err, socket, next) => {
   try {
     if (err) return next(err);
@@ -71,15 +72,49 @@ const socketAuthenticator = async (err, socket, next) => {
       return next(new ErrorHandler("Please login to access this route", 401));
 
     const decodedToken = await admin.auth().verifyIdToken(authToken);
+    const uid = decodedToken.uid;
 
-    // Fetch the user's profile from Firestore
-    const userDoc = await db.collection("users").doc(decodedToken.uid).get();
+    // *** NEW FCM LOGIC STARTS HERE ***
+
+    // 1. Get the new FCM token from the mobile client's handshake
+    const newFcmToken = socket.handshake.auth.fcmToken;
+
+    // 2. Fetch the user's document
+    const userDocRef = db.collection("users").doc(uid);
+    const userDoc = await userDocRef.get();
 
     if (!userDoc.exists)
       return next(new ErrorHandler("User not found", 401));
 
-    // Attach the Firestore user data to the socket object
-    socket.user = { _id: userDoc.id, ...userDoc.data() };
+    const userData = userDoc.data();
+    const oldFcmToken = userData.fcmToken; // Get the token stored in DB
+
+    let tokenToUpdate = null;
+
+    // 3. If a new mobile token is provided:
+    if (newFcmToken) {
+      // 4. Check if it's different from the one in the DB
+      if (oldFcmToken && newFcmToken !== oldFcmToken) {
+        // 5. Send a push notification to the *old* device
+        await sendPushNotification(
+          oldFcmToken,
+          "ChatHub Security Alert",
+          "A new device has logged into your account."
+        );
+      }
+      // 6. This new token should be saved.
+      tokenToUpdate = newFcmToken;
+    }
+
+    // 7. Update the FCM token in Firestore if it's new
+    if (tokenToUpdate) {
+      await userDocRef.update({ fcmToken: tokenToUpdate });
+      userData.fcmToken = tokenToUpdate; // Update in-memory data
+    }
+    // *** NEW FCM LOGIC ENDS HERE ***
+
+    // Attach the Firestore user data (with updated token) to the socket object
+    socket.user = { _id: userDoc.id, ...userData };
 
     return next();
   } catch (error) {

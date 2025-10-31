@@ -9,9 +9,11 @@ import {
   newUser,
   searchUser,
   sendFriendRequest,
+  updateFcmToken, // *** IMPORT NEW CONTROLLER ***
 } from "../controllers/user.js";
 import {
   acceptRequestValidator,
+  fcmTokenValidator, // *** IMPORT NEW VALIDATOR ***
   loginValidator,
   registerValidator, // This validator was updated to include 'email'
   sendRequestValidator,
@@ -46,5 +48,8 @@ app.put(
 );
 app.get("/notifications", getMyNotifications);
 app.get("/friends", getMyFriends);
+
+// *** ADD NEW ROUTE ***
+app.put("/fcm-token", fcmTokenValidator(), validateHandler, updateFcmToken);
 
 export default app;

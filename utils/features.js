@@ -12,6 +12,27 @@ admin.initializeApp({
 // Initialize Firestore
 const db = admin.firestore();
 
+// *** NEW FUNCTION ***
+// Function to send an FCM push notification
+const sendPushNotification = async (token, title, body) => {
+  if (!token) return;
+
+  const message = {
+    notification: {
+      title,
+      body,
+    },
+    token: token,
+  };
+
+  try {
+    await admin.messaging().send(message);
+    console.log("Successfully sent push notification");
+  } catch (error) {
+    console.error("Error sending push notification:", error);
+  }
+};
+
 const emitEvent = (req, event, users, data) => {
   const io = req.app.get("io");
   const usersSocket = getSockets(users);
@@ -66,4 +87,5 @@ export {
   emitEvent,
   deletFilesFromCloudinary,
   uploadFilesToCloudinary,
+  sendPushNotification, // *** EXPORT NEW FUNCTION ***
 };

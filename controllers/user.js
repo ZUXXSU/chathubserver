@@ -4,13 +4,35 @@ import {
   db,
   deletFilesFromCloudinary,
   emitEvent,
+  sendPushNotification, // *** IMPORT sendPushNotification ***
   uploadFilesToCloudinary,
 } from "../utils/features.js";
 import { ErrorHandler } from "../utils/utility.js";
 import { getOtherMember } from "../lib/helper.js";
 import { NEW_REQUEST, REFETCH_CHATS } from "../constants/events.js";
 
+// *** NEW CONTROLLER ***
+// Controller to update the FCM token
+const updateFcmToken = TryCatch(async (req, res, next) => {
+  const { fcmToken } = req.body;
+  const uid = req.user;
+
+  if (!fcmToken) {
+    return next(new ErrorHandler("Please provide an FCM token", 400));
+  }
+
+  await db.collection("users").doc(uid).update({
+    fcmToken: fcmToken,
+  });
+
+  res.status(200).json({
+    success: true,
+    message: "FCM token updated successfully",
+  });
+});
+
 // Create a new user in Firebase Auth and a user profile in Firestore
+// *** MODIFIED FUNCTION ***
 const newUser = TryCatch(async (req, res, next) => {
   const { name, username, password, bio, email } = req.body;
 
@@ -39,6 +61,7 @@ const newUser = TryCatch(async (req, res, next) => {
     bio,
     username,
     avatar,
+    fcmToken: null, // *** ADD fcmToken FIELD ***
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
@@ -127,6 +150,7 @@ const searchUser = TryCatch(async (req, res) => {
 });
 
 // Send a friend request
+// *** MODIFIED FUNCTION ***
 const sendFriendRequest = TryCatch(async (req, res, next) => {
   const { userId } = req.body; // UID of the receiver
   const senderId = req.user; // My UID
@@ -157,6 +181,26 @@ const sendFriendRequest = TryCatch(async (req, res, next) => {
 
   emitEvent(req, NEW_REQUEST, [userId]);
 
+  // *** NEW PUSH NOTIFICATION LOGIC ***
+  try {
+    const [receiverDoc, senderDoc] = await Promise.all([
+      db.collection("users").doc(userId).get(),
+      db.collection("users").doc(senderId).get(),
+    ]);
+
+    const receiverToken = receiverDoc.data()?.fcmToken;
+    const senderName = senderDoc.data()?.name || "Someone";
+
+    await sendPushNotification(
+      receiverToken,
+      "New Friend Request",
+      `${senderName} sent you a friend request.`
+    );
+  } catch (error) {
+    console.error("Error sending friend request push notification:", error);
+  }
+  // *** END NEW LOGIC ***
+
   return res.status(200).json({
     success: true,
     message: "Friend Request Sent",
@@ -164,6 +208,7 @@ const sendFriendRequest = TryCatch(async (req, res, next) => {
 });
 
 // Accept or reject a friend request
+// *** MODIFIED FUNCTION ***
 const acceptFriendRequest = TryCatch(async (req, res, next) => {
   const { requestId, accept } = req.body;
   const myUid = req.user;
@@ -197,8 +242,11 @@ const acceptFriendRequest = TryCatch(async (req, res, next) => {
     db.collection("users").doc(request.receiver).get(),
   ]);
 
-  const senderName = senderDoc.data()?.name || "User";
-  const receiverName = receiverDoc.data()?.name || "User";
+  const senderData = senderDoc.data();
+  const receiverData = receiverDoc.data();
+
+  const senderName = senderData?.name || "User";
+  const receiverName = receiverData?.name || "User";
 
   // Create a new 1-on-1 chat
   await Promise.all([
@@ -212,6 +260,21 @@ const acceptFriendRequest = TryCatch(async (req, res, next) => {
   ]);
 
   emitEvent(req, REFETCH_CHATS, members);
+
+  // *** NEW PUSH NOTIFICATION LOGIC ***
+  try {
+    const senderToken = senderData?.fcmToken;
+    const myName = receiverData?.name || "Someone";
+
+    await sendPushNotification(
+      senderToken,
+      "Friend Request Accepted",
+      `${myName} accepted your friend request.`
+    );
+  } catch (error) {
+    console.error("Error sending accept request push notification:", error);
+  }
+  // *** END NEW LOGIC ***
 
   return res.status(200).json({
     success: true,
@@ -313,4 +376,5 @@ export {
   newUser,
   searchUser,
   sendFriendRequest,
+  updateFcmToken, // *** EXPORT NEW CONTROLLER ***
 };

@@ -22,6 +22,7 @@ const createUser = async (numUsers) => {
         });
 
         // 2. Create user document in Firestore
+        // *** MODIFIED FUNCTION ***
         await db.collection("users").doc(userRecord.uid).set({
           name,
           username,
@@ -30,6 +31,7 @@ const createUser = async (numUsers) => {
             url: avatarUrl,
             public_id: faker.system.fileName(),
           },
+          fcmToken: null, // *** ADD fcmToken FIELD ***
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
       };
