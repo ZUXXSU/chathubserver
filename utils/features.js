@@ -2,12 +2,11 @@ import admin from "firebase-admin";
 import { v4 as uuid } from "uuid";
 import { v2 as cloudinary } from "cloudinary";
 import { getBase64, getSockets } from "../lib/helper.js";
-// import serviceAccount from "../serviceAccountKey.json" with { type: "json" };
+import serviceAccount from "../serviceAccountKey.json" with { type: "json" };
 
-const serviceAccountConfig = JSON.parse(process.env.FIREBASE_CREDENTIALS_JSON || `{}`);
-// Initialize Firebase Admin SDK
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccountConfig),
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: "https://t35t-32882-default-rtdb.firebaseio.com"
 });
 
 // Initialize Firestore

@@ -21,6 +21,8 @@ import {
 import { getSockets } from "./lib/helper.js";
 import { corsOptions } from "./constants/config.js";
 import { socketAuthenticator } from "./middlewares/auth.js";
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
 
 // Import routes
 import userRoute from "./routes/user.js";
@@ -40,6 +42,20 @@ const onlineUsers = new Set();
 
 // connectDB(mongoURI); // No longer needed; Firebase is initialized in features.js
 
+const firebaseConfig = {
+  apiKey: "AIzaSyBj3eR_62gp8kOMQmeDKe_7UsYIi2rVdNk",
+  authDomain: "t35t-32882.firebaseapp.com",
+  databaseURL: "https://t35t-32882-default-rtdb.firebaseio.com",
+  projectId: "t35t-32882",
+  storageBucket: "t35t-32882.firebasestorage.app",
+  messagingSenderId: "860997172903",
+  appId: "1:860997172903:web:9e8e9de9174a993026e582",
+  measurementId: "G-E111M1N516"
+};
+
+// Initialize Firebase
+// const firebaseapp = initializeApp(firebaseConfig);
+// const analytics = getAnalytics(firebaseapp);
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
@@ -182,6 +198,7 @@ io.on("connection", (socket) => {
 app.use(errorMiddleware);
 
 server.listen(port, () => {
+  // analytics;
   console.log(`Server is running on port ${port} in ${envMode} Mode`);
 });
 
